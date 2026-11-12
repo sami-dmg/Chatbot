@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GLASSWING AI | Clean Mode</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background: linear-gradient(135deg, #FF9A9E 0%, #FAD0C4 100%); height: 100vh; margin: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .glass-card { background: rgba(255, 255, 255, 0.95); border-radius: 40px; box-shadow: 0 25px 50px rgba(0, 0, 0, 0.1); width: 95%; max-width: 450px; height: 85vh; display: flex; flex-direction: column; position: relative; border: 2px solid white; }
+    #welcome-screen { position: absolute; inset: 0; background: white; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 38px; text-align: center; transition: 0.4s; }
+    #chat-window { flex-grow: 1; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; gap: 15px; }
+    
+    /* AI Bubble Fix for Markdown */
+    .ai-bubble { background: #F0F4F8; color: #4A5568; align-self: flex-start; padding: 14px 18px; border-radius: 25px 25px 25px 5px; max-width: 85%; font-size: 0.95rem; line-height: 1.5; }
+    .ai-bubble b, .ai-bubble strong { color: #1a202c; font-weight: 700; }
+    .ai-bubble p { margin-bottom: 8px; }
+    .ai-bubble p:last-child { margin-bottom: 0; }
+
+    .user-bubble { background: linear-gradient(135deg, #667eea, #764ba2); color: white; align-self: flex-end; padding: 14px 18px; border-radius: 25px 25px 5px 25px; max-width: 85%; font-size: 0.95rem; }
+    .loader { display: none; align-self: flex-start; margin-left: 20px; padding: 10px; }
+    .dot { height: 8px; width: 8px; background: #764ba2; border-radius: 50%; display: inline-block; animation: bounce 1.4s infinite ease-in-out; margin: 0 2px; }
+    @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+    .btn-cute { background: linear-gradient(135deg, #667eea, #764ba2); color: white; cursor: pointer; border: none; }
+  </style>
+</head>
+<body>
+
+  <div class="glass-card">
+    <div id="welcome-screen">
+      <div class="text-7xl mb-4 animate-bounce">🦋</div>
+      <h1 class="text-3xl font-bold text-indigo-600">Glasswing</h1>
+      <p class="text-gray-400 mt-2">Powered By Gemini 3</p>
+      <button id="start-btn" class="mt-8 btn-cute px-12 py-4 rounded-full font-bold text-lg shadow-xl active:scale-95">
+        Let's Dive In
+      </button>
+    </div>
+
+    <header class="p-5 flex items-center gap-3 border-b bg-white/50 rounded-t-[40px]">
+      <div class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-2xl">🦋</div>
+      <h2 class="font-bold text-gray-800 text-lg">Glasswing</h2>
+    </header>
+
+    <div id="chat-window">
+      <div class="ai-bubble">Hello! I'm Glasswing. I'm ready to provide clean and beautiful responses! ✨</div>
+    </div>
+
+    <div id="loader" class="loader">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>
+
+    <div class="p-5 bg-white rounded-b-[40px] flex gap-3">
+      <input type="text" id="user-input" placeholder="Ask me something..." class="flex-grow p-4 bg-gray-50 rounded-2xl outline-none border-none shadow-inner">
+      <button id="send-btn" class="btn-cute w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg active:scale-90">➤</button>
+    </div>
+  </div>
+
+  <script>
+    const API_KEY = 'AIzaSyDhHKy1xeoff9CcxqNFTw7m-J_cnhQxXhk';
+    let activeModel = 'gemini-1.5-flash';
+
+    document.getElementById('start-btn').addEventListener('click', function() {
+      document.getElementById('welcome-screen').style.display = 'none';
+    });
+
+    async function syncModel() {
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`);
+        const data = await res.json();
+        if(data.models) {
+          const found = data.models.find(m => m.name.includes('gemini'));
+          if(found) activeModel = found.name.split('/').pop();
+        }
+      } catch(e) { console.log("Model sync error"); }
+    }
+    syncModel();
+
+    async function sendMsg() {
+      const input = document.getElementById('user-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      append('user-bubble', text, false);
+      input.value = '';
+      document.getElementById('loader').style.display = 'block';
+
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${API_KEY}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: text }] }] })
+        });
+        const data = await response.json();
+        document.getElementById('loader').style.display = 'none';
+
+        if (data.candidates) {
+          const aiRawText = data.candidates[0].content.parts[0].text;
+          append('ai-bubble', aiRawText, true);
+        } else {
+          append('ai-bubble', "Error: " + data.error.message, false);
+        }
+      } catch (e) {
+        document.getElementById('loader').style.display = 'none';
+        append('ai-bubble', "Connection error.", false);
+      }
+    }
+
+    function append(className, text, isAI) {
+      const win = document.getElementById('chat-window');
+      const div = document.createElement('div');
+      div.className = className;
+      
+      if (isAI) {
+        
+        div.innerHTML = marked.parse(text);
+      } else {
+        div.innerText = text;
+      }
+      
+      win.appendChild(div);
+      win.scrollTop = win.scrollHeight;
+    }
+
+    document.getElementById('send-btn').addEventListener('click', sendMsg);
+    document.getElementById('user-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMsg();
+    });
+  </script>
+</body>
+</html>
